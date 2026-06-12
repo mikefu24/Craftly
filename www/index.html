@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Craftly — AI 应用构建器</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f7f5ef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Craftly">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; overflow:hidden; }
+
+  /* ============ 首页 ============ */
+  #home {
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center;
+    background:
+      radial-gradient(ellipse 120% 55% at 50% 108%, #e8336d 0%, #d9418f 28%, #7b6cf6 55%, rgba(123,108,246,.25) 75%, transparent 88%),
+      radial-gradient(ellipse 90% 40% at 50% 78%, rgba(91,114,245,.55) 0%, transparent 70%),
+      #f7f5ef;
+    transition:opacity .45s ease, transform .45s ease;
+  }
+  #home.hidden { opacity:0; transform:scale(1.04); pointer-events:none; }
+
+  .topbar { width:100%; display:flex; align-items:center; padding:18px 20px; }
+  .menu-btn {
+    width:48px; height:48px; border-radius:50%; background:#fff; border:1px solid rgba(0,0,0,.06);
+    box-shadow:0 2px 10px rgba(0,0,0,.07); display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .menu-btn span { display:block; width:18px; }
+  .menu-btn span i { display:block; height:2px; background:#222; border-radius:2px; margin:4px 0; }
+  .menu-btn span i:nth-child(2){ width:70%; }
+  .brand { position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:9px; font-size:26px; font-weight:800; color:#171717; letter-spacing:-.5px; }
+  .heart { width:28px; height:28px; background:linear-gradient(135deg,#ff8a3d,#f6396b 55%,#b43df0); border-radius:7px 7px 7px 50%; transform:rotate(0deg); }
+
+  .home-center { flex:1; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding-bottom:6vh; }
+
+  .connect-pill {
+    display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.82); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.7); border-radius:999px; padding:12px 22px; font-weight:700; color:#1c1c1c;
+    cursor:pointer; box-shadow:0 4px 18px rgba(40,40,90,.12); font-size:15.5px; margin-bottom:34px;
+  }
+  .connect-pill .dots { display:flex; }
+  .connect-pill .dot { width:26px; height:26px; border-radius:50%; border:2px solid #fff; margin-left:-8px; }
+  .connect-pill .dot:first-child{ margin-left:0; }
+  .d1{ background:#10a37f; } .d2{ background:conic-gradient(#f24e1e,#ff7262,#a259ff,#1abcfe,#0acf83,#f24e1e); } .d3{ background:#111; }
+
+  .greeting { font-size:clamp(26px,6vw,34px); font-weight:800; color:#15151a; margin-bottom:30px; text-align:center; padding:0 20px; letter-spacing:-.5px; }
+
+  .input-card {
+    width:min(92%,680px); background:#f4f1ea; border-radius:26px; padding:22px 20px 16px;
+    box-shadow:0 18px 50px rgba(30,20,60,.25); margin-bottom:8vh;
+  }
+  .input-card textarea {
+    width:100%; border:none; background:transparent; resize:none; outline:none;
+    font-size:19px; color:#222; font-family:inherit; min-height:56px; line-height:1.45;
+  }
+  .input-card textarea::placeholder { color:#9a958c; }
+  .input-row { display:flex; align-items:center; gap:14px; margin-top:6px; }
+  .icon-btn { background:none; border:none; cursor:pointer; color:#333; display:flex; align-items:center; justify-content:center; padding:6px; }
+  .icon-btn svg { width:24px; height:24px; }
+  .spacer { flex:1; }
+  .mode-btn { background:none; border:none; font-size:17px; font-weight:600; color:#2a2a2a; cursor:pointer; display:flex; align-items:center; gap:5px; font-family:inherit; padding:6px 8px; border-radius:10px; }
+  .mode-btn:active { background:rgba(0,0,0,.06); }
+  .send-btn {
+    width:52px; height:52px; border-radius:50%; border:none; background:#8a8a8a; color:#fff; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .2s;
+  }
+  .send-btn.ready { background:#1b1b1f; }
+  .send-btn svg { width:22px; height:22px; }
+  .mic-btn.listening { color:#e8336d; animation:pulse 1s infinite; }
+  @keyframes pulse { 50%{ opacity:.4; } }
+
+  .mode-menu {
+    position:absolute; background:#fff; border-radius:14px; box-shadow:0 10px 36px rgba(0,0,0,.18);
+    padding:6px; display:none; z-index:50; min-width:150px;
+  }
+  .mode-menu.open { display:block; }
+  .mode-menu button { display:block; width:100%; text-align:left; padding:11px 14px; border:none; background:none; font-size:15.5px; font-family:inherit; border-radius:9px; cursor:pointer; }
+  .mode-menu button:hover { background:#f3f1ec; }
+
+  /* ============ 构建器 ============ */
+  #builder { position:fixed; inset:0; display:none; flex-direction:column; background:#101014; color:#e9e9ee; }
+  #builder.show { display:flex; }
+  .b-top { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #232330; background:#16161c; }
+  .back-btn { background:#23232c; border:none; color:#dcdce4; width:36px; height:36px; border-radius:10px; cursor:pointer; font-size:17px; }
+  .proj-name { font-weight:700; font-size:15.5px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tab-switch { display:flex; background:#23232c; border-radius:10px; padding:3px; }
+  .tab-switch button { border:none; background:none; color:#9d9dab; font-size:13.5px; font-weight:600; padding:7px 14px; border-radius:8px; cursor:pointer; font-family:inherit; }
+  .tab-switch button.active { background:#3c3c4a; color:#fff; }
+
+  .b-body { flex:1; display:flex; min-height:0; }
+  .chat-pane { width:400px; max-width:46%; display:flex; flex-direction:column; border-right:1px solid #232330; min-height:0; }
+  .preview-pane { flex:1; display:flex; flex-direction:column; background:#1b1b22; min-width:0; }
+
+  .msgs { flex:1; overflow-y:auto; padding:18px 16px; display:flex; flex-direction:column; gap:14px; }
+  .msg { max-width:88%; padding:12px 15px; border-radius:16px; font-size:14.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+  .msg.user { align-self:flex-end; background:#4f46e5; color:#fff; border-bottom-right-radius:5px; }
+  .msg.ai { align-self:flex-start; background:#23232c; border-bottom-left-radius:5px; }
+  .msg.sys { align-self:flex-start; background:transparent; color:#8d8d9c; font-size:13px; padding:2px 4px; }
+  .msg .step { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .msg .step .ok { color:#34d399; }
+  .typing i { display:inline-block; width:6px; height:6px; border-radius:50%; background:#9d9dab; margin-right:4px; animation:blink 1.2s infinite; }
+  .typing i:nth-child(2){ animation-delay:.2s; } .typing i:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 50%{ opacity:.25; } }
+
+  .chat-input { display:flex; gap:10px; padding:12px 14px; border-top:1px solid #232330; }
+  .chat-input input { flex:1; background:#23232c; border:1px solid #32323e; border-radius:12px; padding:12px 14px; color:#fff; font-size:14.5px; outline:none; font-family:inherit; }
+  .chat-input button { background:#4f46e5; border:none; color:#fff; border-radius:12px; padding:0 18px; font-size:15px; cursor:pointer; font-family:inherit; }
+
+  .preview-bar { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid #232330; font-size:13px; color:#9d9dab; }
+  .url-pill { flex:1; background:#101014; border-radius:8px; padding:7px 12px; font-family:ui-monospace,monospace; font-size:12px; color:#7c7c8c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dev-btn { background:#23232c; border:none; color:#c9c9d4; border-radius:8px; padding:7px 12px; cursor:pointer; font-size:12.5px; font-family:inherit; }
+  .preview-frame-wrap { flex:1; display:flex; align-items:stretch; justify-content:center; padding:0; min-height:0; position:relative; }
+  #preview { width:100%; height:100%; border:none; background:#fff; }
+  .building-overlay {
+    position:absolute; inset:0; background:#1b1b22; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; color:#9d9dab; font-size:14px;
+  }
+  .spinner { width:34px; height:34px; border-radius:50%; border:3px solid #32323e; border-top-color:#8b7cf6; animation:spin .8s linear infinite; }
+  @keyframes spin { to{ transform:rotate(360deg); } }
+
+  /* ============ 设置面板 ============ */
+  .modal-mask { position:fixed; inset:0; background:rgba(10,10,18,.45); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100; }
+  .modal-mask.open { display:flex; }
+  .modal { width:min(92%,440px); background:#fff; border-radius:20px; padding:24px; box-shadow:0 24px 70px rgba(0,0,0,.3); color:#1a1a1f; max-height:86vh; overflow-y:auto; }
+  .modal h2 { font-size:19px; margin-bottom:4px; }
+  .modal .sub { font-size:13px; color:#888; margin-bottom:6px; }
+  .modal label { display:block; font-size:13px; font-weight:700; color:#555; margin:14px 0 6px; }
+  .modal input, .modal select { width:100%; padding:11px 12px; border:1.5px solid #e2e0da; border-radius:11px; font-size:14.5px; font-family:inherit; outline:none; background:#faf9f6; }
+  .modal input:focus, .modal select:focus { border-color:#7b6cf6; }
+  .modal .row-btns { display:flex; gap:10px; margin-top:22px; }
+  .modal .row-btns button { flex:1; padding:12px; border-radius:12px; border:none; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .save-cfg { background:#1b1b1f; color:#fff; }
+  .close-cfg { background:#efede7; color:#333; }
+  .ai-badge { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; background:#e7fbe9; color:#15803d; cursor:pointer; border:none; font-family:inherit; }
+  .ai-badge.off { background:#f3f1ec; color:#999; }
+  .gen-stat { font-family:ui-monospace,monospace; font-size:12px; color:#8b7cf6; }
+
+  /* 移动端：聊天/预览切换 */
+  @media (max-width:760px) {
+    .chat-pane { width:100%; max-width:100%; border-right:none; }
+    .preview-pane { display:none; }
+    #builder.view-preview .chat-pane { display:none; }
+    #builder.view-preview .preview-pane { display:flex; }
+  }
+  @media (min-width:761px) { .tab-switch { display:none; } }
+</style>
+</head>
+<body>
+
+<!-- ================= 首页 ================= -->
+<div id="home">
+  <div class="topbar">
+    <div class="menu-btn"><span><i></i><i></i><i></i></span></div>
+    <div class="brand"><div class="heart"></div>Craftly</div>
+  </div>
+
+  <div class="home-center">
+    <div class="connect-pill">
+      <span class="dots"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span></span>
+      连接你的所有工具 <span style="font-weight:400">→</span>
+    </div>
+
+    <div class="greeting">你在想什么，Mike？</div>
+    <button class="ai-badge off" id="aiBadge" style="margin-bottom:18px">⚙ AI 引擎：未连接</button>
+
+    <div class="input-card">
+      <textarea id="prompt" rows="2" placeholder="让 Craftly 做一个"></textarea>
+      <div class="input-row">
+        <button class="icon-btn" title="添加附件">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="mode-btn" id="modeBtn">构建 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="icon-btn mic-btn" id="micBtn" title="语音输入">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg>
+        </button>
+        <button class="send-btn" id="sendBtn" title="发送">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mode-menu" id="modeMenu">
+    <button data-m="构建">⚡ 构建</button>
+    <button data-m="规划">📝 规划</button>
+    <button data-m="提问">💬 提问</button>
+  </div>
+</div>
+
+<!-- ================= 设置面板 ================= -->
+<div class="modal-mask" id="cfgMask">
+  <div class="modal">
+    <h2>⚙ AI 引擎设置</h2>
+    <div class="sub">连接 LLM API 后即可真实生成任意应用；不配置则使用本地模拟。配置保存在本机浏览器（localStorage），不会上传。</div>
+    <label>服务商预设</label>
+    <select id="cfgProvider">
+      <option value="deepseek">DeepSeek（deepseek-v4-flash）</option>
+      <option value="agnes">Agnes AI（OpenAI 兼容）</option>
+      <option value="custom">自定义（任意 OpenAI 兼容服务）</option>
+    </select>
+    <label>API Base URL</label>
+    <input id="cfgBase" placeholder="https://api.deepseek.com/v1">
+    <label>模型</label>
+    <input id="cfgModel" placeholder="deepseek-v4-flash">
+    <label>API Key</label>
+    <input id="cfgKey" type="password" placeholder="sk-…">
+    <div class="row-btns">
+      <button class="close-cfg" id="cfgClose">关闭</button>
+      <button class="save-cfg" id="cfgSave">保存并测试</button>
+    </div>
+    <div class="cfg-status" id="cfgStatus" style="font-size:12.5px;margin-top:10px;color:#888"></div>
+  </div>
+</div>
+
+<!-- ================= 构建器 ================= -->
+<div id="builder">
+  <div class="b-top">
+    <button class="back-btn" id="backBtn">←</button>
+    <div class="proj-name" id="projName">新项目</div>
+    <div class="tab-switch">
+      <button id="tabChat" class="active">对话</button>
+      <button id="tabPrev">预览</button>
+    </div>
+  </div>
+  <div class="b-body">
+    <div class="chat-pane">
+      <div class="msgs" id="msgs"></div>
+      <div class="chat-input">
+        <input id="chatInput" placeholder="继续编辑你的应用…">
+        <button id="chatSend">发送</button>
+      </div>
+    </div>
+    <div class="preview-pane">
+      <div class="preview-bar">
+        <span class="url-pill" id="urlPill">preview.craftly.app/sandbox</span>
+        <button class="dev-btn" id="codeBtn">查看代码</button>
+        <button class="dev-btn" id="reloadBtn">刷新</button>
+      </div>
+      <div class="preview-frame-wrap">
+        <iframe id="preview"></iframe>
+        <div class="building-overlay" id="overlay"><div class="spinner"></div><div id="overlayText">沙盒启动中…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 首页交互 ---------- */
+const promptEl = document.getElementById('prompt');
+const sendBtn  = document.getElementById('sendBtn');
+const modeBtn  = document.getElementById('modeBtn');
+const modeMenu = document.getElementById('modeMenu');
+const micBtn   = document.getElementById('micBtn');
+
+/* 占位文字打字动画 */
+const ideas = ['做一个待办清单应用','做一个落地页','做一个番茄钟','做一个记账工具','做一个博客'];
+let ideaI=0, charI=0, deleting=false;
+setInterval(()=>{
+  if(document.activeElement===promptEl || promptEl.value) return;
+  const full='让 Craftly '+ideas[ideaI];
+  if(!deleting){ charI++; if(charI>=full.length){ deleting=true; charI=full.length+14; } }
+  else { charI--; if(charI<=10){ deleting=false; ideaI=(ideaI+1)%ideas.length; } }
+  promptEl.placeholder=full.slice(0,Math.min(charI,full.length));
+},90);
+
+promptEl.addEventListener('input',()=>sendBtn.classList.toggle('ready',promptEl.value.trim().length>0));
+promptEl.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); startBuild(promptEl.value); }});
+sendBtn.addEventListener('click',()=>startBuild(promptEl.value));
+
+/* 模式下拉 */
+modeBtn.addEventListener('click',e=>{
+  e.stopPropagation();
+  const r=modeBtn.getBoundingClientRect();
+  modeMenu.style.left=Math.max(8,r.left-20)+'px';
+  modeMenu.style.top=(r.top-150)+'px';
+  modeMenu.classList.toggle('open');
+});
+modeMenu.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  modeBtn.firstChild.textContent=b.dataset.m+' ';
+  modeMenu.classList.remove('open');
+}));
+document.addEventListener('click',()=>modeMenu.classList.remove('open'));
+
+/* 语音转文本 */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SR){
+  const rec=new SR(); rec.lang='zh-CN'; rec.interimResults=true;
+  let on=false;
+  micBtn.addEventListener('click',()=>{
+    if(on){ rec.stop(); return; }
+    on=true; micBtn.classList.add('listening'); rec.start();
+  });
+  rec.onresult=e=>{ promptEl.value=[...e.results].map(r=>r[0].transcript).join(''); promptEl.dispatchEvent(new Event('input')); };
+  rec.onend=()=>{ on=false; micBtn.classList.remove('listening'); };
+}else{
+  micBtn.addEventListener('click',()=>alert('当前浏览器不支持语音识别（建议使用 Chrome / Safari）'));
+}
+
+/* ---------- 构建器 ---------- */
+const home=document.getElementById('home'), builder=document.getElementById('builder');
+const msgs=document.getElementById('msgs'), preview=document.getElementById('preview');
+const overlay=document.getElementById('overlay'), overlayText=document.getElementById('overlayText');
+const chatInput=document.getElementById('chatInput');
+let currentApp=null, themeColor='#4f46e5';
+
+document.getElementById('backBtn').onclick=()=>{ builder.classList.remove('show'); home.classList.remove('hidden'); };
+document.getElementById('tabChat').onclick=function(){ builder.classList.remove('view-preview'); this.classList.add('active'); tabPrev.classList.remove('active'); };
+const tabPrev=document.getElementById('tabPrev');
+tabPrev.onclick=function(){ builder.classList.add('view-preview'); this.classList.add('active'); document.getElementById('tabChat').classList.remove('active'); };
+document.getElementById('reloadBtn').onclick=()=>{ if(currentApp) preview.srcdoc=currentApp; };
+document.getElementById('codeBtn').onclick=()=>{
+  if(!currentApp) return;
+  const w=window.open('about:blank');
+  w.document.write('<pre style="white-space:pre-wrap;font:12px ui-monospace,monospace;padding:16px">'+currentApp.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>');
+};
+
+function addMsg(cls,html){ const d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=html; msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight; return d; }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- AI 引擎配置 ---------- */
+const PRESETS = {
+  deepseek: { base:'https://api.deepseek.com/v1', model:'deepseek-v4-flash', key:'' },
+  agnes:    { base:'https://api.agnes-ai.com/v1', model:'agnes-2.0-flash', key:'' },
+  custom:   { base:'', model:'', key:'' }
+};
+function loadCfg(){ try{ return JSON.parse(localStorage.getItem('craftly_cfg')) }catch(e){ return null } }
+let cfg = loadCfg() || { provider:'deepseek', ...PRESETS.deepseek };
+
+const aiBadge=document.getElementById('aiBadge'), cfgMask=document.getElementById('cfgMask');
+const cfgProvider=document.getElementById('cfgProvider'), cfgBase=document.getElementById('cfgBase');
+const cfgModel=document.getElementById('cfgModel'), cfgKey=document.getElementById('cfgKey');
+const cfgStatus=document.getElementById('cfgStatus');
+
+function refreshBadge(){
+  const on=!!(cfg && cfg.key && cfg.base);
+  aiBadge.className='ai-badge'+(on?'':' off');
+  aiBadge.textContent=on?('⚙ AI 引擎：'+cfg.model):'⚙ AI 引擎：未连接（本地模拟）';
+}
+function openCfg(){
+  cfgProvider.value=cfg.provider||'custom';
+  cfgBase.value=cfg.base||''; cfgModel.value=cfg.model||''; cfgKey.value=cfg.key||'';
+  cfgStatus.textContent=''; cfgMask.classList.add('open');
+}
+aiBadge.onclick=openCfg;
+document.querySelector('.menu-btn').onclick=openCfg;
+document.getElementById('cfgClose').onclick=()=>cfgMask.classList.remove('open');
+cfgMask.addEventListener('click',e=>{ if(e.target===cfgMask) cfgMask.classList.remove('open'); });
+cfgProvider.onchange=()=>{ const p=PRESETS[cfgProvider.value]; cfgBase.value=p.base; cfgModel.value=p.model; cfgKey.value=p.key; };
+document.getElementById('cfgSave').onclick=async()=>{
+  cfg={ provider:cfgProvider.value, base:cfgBase.value.trim().replace(/\/$/,''), model:cfgModel.value.trim(), key:cfgKey.value.trim() };
+  localStorage.setItem('craftly_cfg',JSON.stringify(cfg));
+  refreshBadge();
+  if(!cfg.key){ cfgStatus.textContent='已保存（未填 key，将使用本地模拟）。'; return; }
+  cfgStatus.textContent='正在测试连接…';
+  try{
+    const r=await fetch(cfg.base+'/chat/completions',{ method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+cfg.key },
+      body:JSON.stringify({ model:cfg.model, messages:[{role:'user',content:'hi'}], max_tokens:5 }) });
+    cfgStatus.textContent=r.ok?'✓ 连接成功，AI 引擎已就绪！':'✗ 服务返回 HTTP '+r.status+'（请检查模型名 / key / 余额）';
+    cfgStatus.style.color=r.ok?'#15803d':'#dc2626';
+  }catch(e){ cfgStatus.textContent='✗ 无法连接：'+(e.message||e)+'（可能是网络或 CORS 限制）'; cfgStatus.style.color='#dc2626'; }
+};
+refreshBadge();
+
+/* ---------- LLM 调用 ---------- */
+const SYS='你是 Craftly 的应用生成引擎。根据用户需求输出一个完整、自包含的单文件 HTML 应用：内联全部 CSS 和 JavaScript，不依赖任何外部资源，移动端自适应，界面美观现代，文案使用中文。只输出代码，放在 ```html 代码块中，不要输出任何解释文字。';
+
+async function llmStream(messages,onDelta){
+  const res=await fetch(cfg.base+'/chat/completions',{ method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+cfg.key },
+    body:JSON.stringify({ model:cfg.model, messages, stream:true, max_tokens:8000 }) });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const reader=res.body.getReader(), dec=new TextDecoder(); let buf='', full='';
+  while(true){
+    const {done,value}=await reader.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n'); buf=lines.pop();
+    for(const ln of lines){
+      const s=ln.trim(); if(!s.startsWith('data:')) continue;
+      const d=s.slice(5).trim(); if(d==='[DONE]') continue;
+      try{ const delta=JSON.parse(d).choices?.[0]?.delta?.content||''; if(delta){ full+=delta; onDelta&&onDelta(full); } }catch(e){}
+    }
+  }
+  return full;
+}
+function extractHtml(s){
+  let m=s.match(/```html\s*([\s\S]*?)```/); if(m) return m[1].trim();
+  m=s.match(/```\s*(<!DOCTYPE[\s\S]*?)```/i); if(m) return m[1].trim();
+  const i=s.search(/<!DOCTYPE/i); if(i>=0) return s.slice(i).replace(/```\s*$/,'').trim();
+  return null;
+}
+function statCb(){ return f=>{ const el=document.getElementById('genStat'); if(el) el.textContent='已生成 '+f.length+' 字符'; overlayText.textContent='AI 正在编写代码… '+f.length+' 字符'; }; }
+
+async function llmBuild(text){
+  addMsg('ai','🤖 正在调用 '+escape(cfg.model)+' 生成应用…\n<span class="gen-stat" id="genStat">连接中…</span>');
+  overlayText.textContent='AI 正在编写代码…';
+  try{
+    const full=await llmStream([{role:'system',content:SYS},{role:'user',content:text}],statCb());
+    const html=extractHtml(full);
+    if(!html) throw new Error('未能从回复中提取 HTML 代码');
+    currentApp=html; preview.srcdoc=html; overlay.style.display='none';
+    document.getElementById('urlPill').textContent='preview.craftly.app/ai-app';
+    addMsg('ai','✨ 生成完成（'+html.length+' 字符），已部署到沙盒预览。'+(innerWidth<=760?'点右上角「预览」查看。':'')+'\n\n继续描述任何修改，我会实时迭代。');
+    return true;
+  }catch(e){
+    addMsg('sys','⚠ AI 调用失败：'+escape(String(e.message||e))+'。已回退到本地模拟（点首页 ⚙ 检查配置）。');
+    return false;
+  }
+}
+
+async function llmEdit(text){
+  const m=addMsg('ai','🤖 正在修改应用…\n<span class="gen-stat" id="genStat">连接中…</span>');
+  try{
+    const full=await llmStream([
+      {role:'system',content:SYS+' 用户会提供当前应用代码和修改要求，请输出修改后的完整单文件 HTML。'},
+      {role:'user',content:'当前应用代码：\n```html\n'+currentApp+'\n```\n\n修改要求：'+text}
+    ],f=>{ const el=document.getElementById('genStat'); if(el) el.textContent='已生成 '+f.length+' 字符'; });
+    const html=extractHtml(full); if(!html) throw new Error('未能提取 HTML');
+    currentApp=html; preview.srcdoc=html;
+    m.innerHTML='✓ 修改完成（'+html.length+' 字符），预览已刷新。';
+    return true;
+  }catch(e){ m.innerHTML='⚠ AI 修改失败：'+escape(String(e.message||e)); return true; }
+}
+
+async function startBuild(text){
+  text=text.trim(); if(!text) return;
+  home.classList.add('hidden'); builder.classList.add('show');
+  document.getElementById('projName').textContent=text.slice(0,24);
+  msgs.innerHTML=''; overlay.style.display='flex'; overlayText.textContent='沙盒启动中…';
+  addMsg('user',escape(text));
+  if(cfg && cfg.key && cfg.base){ const ok=await llmBuild(text); if(ok) return; }
+  await simBuild(text);
+}
+
+async function simBuild(text){
+  const t=addMsg('ai','<span class="typing"><i></i><i></i><i></i></span>');
+  await sleep(900); t.remove();
+
+  const plan=pickApp(text);
+  addMsg('ai','好的！我来为你构建「'+plan.name+'」。计划如下：\n• '+plan.features.join('\n• '));
+  const steps=['创建项目结构','编写界面组件','添加交互逻辑','配置沙盒预览'];
+  const stepMsg=addMsg('ai','');
+  for(const s of steps){
+    overlayText.textContent=s+'…';
+    stepMsg.innerHTML+='<div class="step"><span class="ok">✓</span>'+s+'</div>';
+    msgs.scrollTop=msgs.scrollHeight;
+    await sleep(700);
+  }
+  currentApp=plan.html;
+  preview.srcdoc=currentApp;
+  overlay.style.display='none';
+  document.getElementById('urlPill').textContent='preview.craftly.app/'+plan.slug;
+  addMsg('ai','✨ 完成！应用已部署到沙盒预览。'+(innerWidth<=760?'点击右上角「预览」查看效果。':'右侧即可查看效果。')+'\n\n继续告诉我要修改什么，比如「换成绿色主题」或「加一个深色模式」。');
+}
+
+function escape(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+/* 关键词 → 演示应用 */
+function pickApp(text){
+  const t=text.toLowerCase();
+  if(/待办|todo|清单|任务/.test(t)) return todoApp();
+  if(/番茄|计时|倒计时|timer|钟/.test(t)) return timerApp();
+  if(/记账|账本|花销|消费|expense/.test(t)) return expenseApp();
+  return landingApp(text);
+}
+
+const base=c=>'<style>*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,"PingFang SC",sans-serif}body{min-height:100vh;background:#f6f7fb;padding:24px}h1{font-size:22px;margin-bottom:18px}.card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.06)}button{cursor:pointer;font-family:inherit}.accent{background:'+c+';color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:15px}</style>';
+
+function todoApp(){
+  return { name:'待办清单', slug:'todo-app', features:['添加 / 完成 / 删除任务','进度统计','本地状态保存'],
+  html:'<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'+base(themeColor)+'</head><body><h1>📝 我的待办</h1><div class="card"><div style="display:flex;gap:10px;margin-bottom:14px"><input id="i" placeholder="添加任务…" style="flex:1;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:15px"><button class="accent" onclick="add()">添加</button></div><ul id="l" style="list-style:none"></ul><p id="s" style="color:#888;font-size:13px;margin-top:12px">还没有任务</p></div><script>let ts=[];function add(){const v=i.value.trim();if(!v)return;ts.push({t:v,d:false});i.value="";render()}function render(){l.innerHTML=ts.map((x,n)=>`<li style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0"><input type=checkbox ${x.d?"checked":""} onchange="ts[${n}].d=!ts[${n}].d;render()"><span style="flex:1;${x.d?"text-decoration:line-through;color:#aaa":""}">${x.t}</span><button onclick="ts.splice(${n},1);render()" style="border:none;background:none;color:#e55">✕</button></li>`).join("");s.textContent=ts.length?`完成 ${ts.filter(x=>x.d).length}/${ts.length}`:"还没有任务"}i.addEventListener("keydown",e=>e.key==="Enter"&&add())<\/script></body></html>' };
+}
+
+function timerApp(){
+  return { name:'番茄钟', slug:'pomodoro', features:['25 分钟专注计时','开始 / 暂停 / 重置','圆环进度显示'],
+  html:'<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'+base(themeColor)+'</head><body style="display:flex;flex-direction:column;align-items:center;justify-content:center"><h1>🍅 番茄钟</h1><div class="card" style="text-align:center;padding:36px 48px"><div id="t" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums">25:00</div><div style="margin-top:22px;display:flex;gap:12px;justify-content:center"><button class="accent" id="b" onclick="tog()">开始</button><button onclick="rst()" style="background:#eee;border:none;border-radius:10px;padding:10px 18px;font-size:15px">重置</button></div></div><script>let s=1500,on=false,iv;function show(){t.textContent=String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}function tog(){on=!on;b.textContent=on?"暂停":"开始";if(on)iv=setInterval(()=>{if(--s<=0){clearInterval(iv);on=false;b.textContent="开始";s=0}show()},1000);else clearInterval(iv)}function rst(){clearInterval(iv);on=false;s=1500;b.textContent="开始";show()}<\/script></body></html>' };
+}
+
+function expenseApp(){
+  return { name:'记账本', slug:'expenses', features:['记录收支','分类汇总','余额统计'],
+  html:'<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'+base(themeColor)+'</head><body><h1>💰 记账本</h1><div class="card" style="margin-bottom:16px;text-align:center"><div style="color:#888;font-size:13px">当前余额</div><div id="bal" style="font-size:34px;font-weight:800">¥0.00</div></div><div class="card"><div style="display:flex;gap:8px;margin-bottom:14px"><input id="n" placeholder="项目" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:10px"><input id="a" type=number placeholder="金额" style="width:90px;padding:10px;border:1px solid #ddd;border-radius:10px"><button class="accent" onclick="add(1)">收入</button><button onclick="add(-1)" style="background:#e8336d;color:#fff;border:none;border-radius:10px;padding:10px 14px">支出</button></div><ul id="l" style="list-style:none"></ul></div><script>let rs=[];function add(k){const v=parseFloat(a.value);if(!n.value||!v)return;rs.unshift({n:n.value,v:v*k});n.value=a.value="";render()}function render(){l.innerHTML=rs.map(r=>`<li style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0f0f0"><span>${r.n}</span><b style="color:${r.v>0?"#16a34a":"#e8336d"}">${r.v>0?"+":""}${r.v.toFixed(2)}</b></li>`).join("");bal.textContent="¥"+rs.reduce((s,r)=>s+r.v,0).toFixed(2)}<\/script></body></html>' };
+}
+
+function landingApp(text){
+  return { name:'落地页', slug:'landing', features:['Hero 区块与 CTA','特性卡片','响应式布局'],
+  html:'<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">'+base(themeColor)+'</head><body style="padding:0"><div style="background:linear-gradient(135deg,'+themeColor+',#9333ea);color:#fff;padding:64px 24px;text-align:center"><h1 style="font-size:30px;color:#fff">'+escape(text).slice(0,30)+'</h1><p style="opacity:.85;margin:12px 0 24px">由 Craftly 在沙盒中即时生成的演示页面</p><button style="background:#fff;color:#333;border:none;border-radius:999px;padding:13px 30px;font-size:16px;font-weight:700">立即开始 →</button></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;padding:28px 22px">'+['⚡ 极速构建|描述需求，几秒生成可预览应用','🔒 数据库与鉴权|内置后端能力，开箱即用','🎙 语音输入|动口不动手，说出你的想法'].map(s=>{const[a,b]=s.split('|');return '<div class="card"><div style="font-size:17px;font-weight:700;margin-bottom:6px">'+a+'</div><div style="color:#777;font-size:14px;line-height:1.5">'+b+'</div></div>'}).join('')+'</div></body></html>' };
+}
+
+/* 构建器内继续对话（AI 编辑，无配置时本地模拟） */
+async function chatEdit(){
+  const text=chatInput.value.trim(); if(!text) return;
+  chatInput.value='';
+  addMsg('user',escape(text));
+  if(cfg && cfg.key && cfg.base && currentApp){ await llmEdit(text); return; }
+  const t=addMsg('ai','<span class="typing"><i></i><i></i><i></i></span>');
+  await sleep(800); t.remove();
+  const colors={ '绿':'#16a34a','红':'#dc2626','蓝':'#2563eb','紫':'#7c3aed','橙':'#ea580c','粉':'#db2777','黑':'#18181b' };
+  const hit=Object.keys(colors).find(k=>text.includes(k));
+  if(hit && currentApp){
+    currentApp=currentApp.split(themeColor).join(colors[hit]);
+    themeColor=colors[hit];
+    preview.srcdoc=currentApp;
+    addMsg('ai','✓ 已将主题色更新为'+hit+'色，预览已刷新。');
+  }else if(/深色|暗色|dark/i.test(text) && currentApp){
+    currentApp=currentApp.replace('background:#f6f7fb','background:#15151c;color:#e7e7ee').replace(/background:#fff;/g,'background:#22222c;');
+    preview.srcdoc=currentApp;
+    addMsg('ai','✓ 已切换为深色模式。');
+  }else{
+    addMsg('ai','当前为本地模拟模式，仅支持：\n• 「换成绿/蓝/紫/红色主题」\n• 「加一个深色模式」\n\n回到首页点 ⚙ 配置 AI 引擎后，即可执行任意修改。');
+  }
+}
+document.getElementById('chatSend').onclick=chatEdit;
+chatInput.addEventListener('keydown',e=>e.key==='Enter'&&chatEdit());
+</script>
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>

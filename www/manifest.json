@@ -1,0 +1,15 @@
+{
+  "name": "Craftly — AI 应用构建器",
+  "short_name": "Craftly",
+  "description": "描述需求，即时构建并预览 Web / 移动应用",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f5ef",
+  "theme_color": "#f7f5ef",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
