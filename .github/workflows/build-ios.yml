@@ -3,8 +3,12 @@ name: Build iOS IPA (unsigned)
 on:
   push:
     branches: [main]
+    tags: ['v*']
     paths: ['www/**', 'capacitor.config.json', '.github/workflows/build-ios.yml']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   ipa:
