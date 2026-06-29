@@ -1,0 +1,26 @@
+{
+  "name": "craftly-desktop",
+  "version": "1.0.0",
+  "description": "Craftly 桌面版（Electron 壳，复用 www/ 单文件应用）",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac dmg --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.craftly.app",
+    "productName": "Craftly",
+    "files": ["main.js", "www/**/*"],
+    "directories": { "output": "dist" },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "dmg": { "title": "Craftly ${version}" }
+  }
+}

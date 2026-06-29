@@ -1,6 +1,10 @@
 node_modules/
 android/
 ios/
+desktop/node_modules/
+desktop/www/
+desktop/dist/
 *.apk
 *.ipa
+*.dmg
 .DS_Store

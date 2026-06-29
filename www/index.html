@@ -139,6 +139,18 @@
   .ai-badge.off { background:#f3f1ec; color:#999; }
   .gen-stat { font-family:ui-monospace,monospace; font-size:12px; color:#8b7cf6; }
 
+  /* 我的项目 */
+  .proj-btn { margin-left:auto; width:48px; height:48px; border-radius:50%; background:#fff; border:1px solid rgba(0,0,0,.06); box-shadow:0 2px 10px rgba(0,0,0,.07); font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .proj-item { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid #eceae3; border-radius:12px; margin-bottom:8px; }
+  .proj-item-main { flex:1; min-width:0; }
+  .proj-item-name { font-weight:700; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .proj-item-meta { font-size:12px; color:#999; margin-top:2px; }
+  .proj-open { background:#1b1b1f; color:#fff; border:none; border-radius:9px; padding:8px 14px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .proj-del { background:#f3f1ec; color:#a33; border:none; border-radius:9px; padding:8px 11px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .plan-go { background:#4f46e5; color:#fff; border:none; border-radius:10px; padding:9px 14px; font-size:13.5px; cursor:pointer; font-family:inherit; margin-right:8px; }
+  .plan-cancel { background:#2a2a33; color:#cfcfda; border:none; border-radius:10px; padding:9px 14px; font-size:13.5px; cursor:pointer; font-family:inherit; }
+  .dev-btn:disabled { opacity:.4; cursor:default; }
+
   /* 移动端：聊天/预览切换 */
   @media (max-width:760px) {
     .chat-pane { width:100%; max-width:100%; border-right:none; }
@@ -156,6 +168,7 @@
   <div class="topbar">
     <div class="menu-btn"><span><i></i><i></i><i></i></span></div>
     <div class="brand"><div class="heart"></div>Craftly</div>
+    <button class="proj-btn" id="projBtn" title="我的项目">📁</button>
   </div>
 
   <div class="home-center">
@@ -170,9 +183,11 @@
     <div class="input-card">
       <textarea id="prompt" rows="2" placeholder="让 Craftly 做一个"></textarea>
       <div class="input-row">
-        <button class="icon-btn" title="添加附件">
+        <button class="icon-btn" id="attachBtn" title="添加附件">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <input type="file" id="fileInput" multiple style="display:none">
+        <span class="attach-tag" id="attachTag" style="display:none;font-size:13px;color:#6a655c;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
         <span class="spacer"></span>
         <button class="mode-btn" id="modeBtn">构建 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <button class="icon-btn mic-btn" id="micBtn" title="语音输入">
@@ -217,6 +232,16 @@
   </div>
 </div>
 
+<!-- ================= 我的项目 ================= -->
+<div class="modal-mask" id="projMask">
+  <div class="modal">
+    <h2>📁 我的项目</h2>
+    <div class="sub">项目自动保存在本机浏览器（localStorage）。点「打开」继续编辑；在构建器里可「⬇ 下载」导出为 .html 部署到任意地方。</div>
+    <div id="projList" style="margin-top:14px"></div>
+    <div class="row-btns"><button class="close-cfg" id="projClose">关闭</button></div>
+  </div>
+</div>
+
 <!-- ================= 构建器 ================= -->
 <div id="builder">
   <div class="b-top">
@@ -237,7 +262,9 @@
     </div>
     <div class="preview-pane">
       <div class="preview-bar">
-        <span class="url-pill" id="urlPill">preview.craftly.app/sandbox</span>
+        <span class="url-pill" id="urlPill">本地沙盒预览（未部署）</span>
+        <button class="dev-btn" id="revertBtn" title="回退到上一个版本">↶ 回退</button>
+        <button class="dev-btn" id="downloadBtn" title="下载为 .html 文件">⬇ 下载</button>
         <button class="dev-btn" id="codeBtn">查看代码</button>
         <button class="dev-btn" id="reloadBtn">刷新</button>
       </div>
@@ -280,8 +307,10 @@ modeBtn.addEventListener('click',e=>{
   modeMenu.style.top=(r.top-150)+'px';
   modeMenu.classList.toggle('open');
 });
+let mode='构建';
 modeMenu.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
-  modeBtn.firstChild.textContent=b.dataset.m+' ';
+  mode=b.dataset.m;
+  modeBtn.firstChild.textContent=mode+' ';
   modeMenu.classList.remove('open');
 }));
 document.addEventListener('click',()=>modeMenu.classList.remove('open'));
@@ -300,6 +329,41 @@ if(SR){
 }else{
   micBtn.addEventListener('click',()=>alert('当前浏览器不支持语音识别（建议使用 Chrome / Safari）'));
 }
+
+/* 添加附件：文本/代码拼进提示词；图片转 data URL 传给支持视觉的模型 */
+const attachBtn=document.getElementById('attachBtn'), fileInput=document.getElementById('fileInput'), attachTag=document.getElementById('attachTag');
+const TEXT_RE=/\.(txt|md|markdown|csv|tsv|json|jsonc|js|mjs|cjs|ts|jsx|tsx|html?|css|scss|less|py|java|c|cpp|cc|h|hpp|go|rs|rb|php|swift|kt|sh|bash|yml|yaml|xml|svg|sql|vue|toml|ini|cfg|conf|env|log)$/i;
+const MAX_CHARS=20000;
+let attachedImages=[];
+function resetAttachTag(){ attachTag.style.display='none'; attachTag.textContent=''; }
+attachBtn.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',async()=>{
+  const files=[...fileInput.files]; if(!files.length) return;
+  let nText=0,nImg=0;
+  for(const f of files){
+    if(f.type.startsWith('image/')){
+      const url=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(f); });
+      attachedImages.push(url); nImg++;
+      promptEl.value=(promptEl.value?promptEl.value+'\n\n':'')+'【已附加图片：'+f.name+'（将发送给支持视觉的模型识别）】';
+    }else{
+      const isText=TEXT_RE.test(f.name)||f.type.startsWith('text/')||f.type==='application/json';
+      let block;
+      if(isText){
+        let txt=await f.text(), note='';
+        if(txt.length>MAX_CHARS){ txt=txt.slice(0,MAX_CHARS); note='\n…（内容过长已截断，仅保留前 '+MAX_CHARS+' 字符）'; }
+        block='【附件 '+f.name+'】\n'+txt+note;
+      }else{
+        block='【已附加文件：'+f.name+'（'+(f.type||'二进制')+'，'+Math.max(1,Math.round(f.size/1024))+'KB；该类型无法读取内容，仅作说明）】';
+      }
+      promptEl.value=(promptEl.value?promptEl.value+'\n\n':'')+block; nText++;
+    }
+  }
+  attachTag.textContent='📎 已附加 '+(nText+nImg)+' 个文件'+(nImg?'（含 '+nImg+' 张图片）':'');
+  attachTag.style.display='inline';
+  promptEl.dispatchEvent(new Event('input'));
+  promptEl.focus();
+  fileInput.value='';
+});
 
 /* ---------- 构建器 ---------- */
 const home=document.getElementById('home'), builder=document.getElementById('builder');
@@ -321,6 +385,67 @@ document.getElementById('codeBtn').onclick=()=>{
 
 function addMsg(cls,html){ const d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=html; msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight; return d; }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- 项目存储 / 历史 / 回退（localStorage） ---------- */
+function loadProjects(){ try{ return JSON.parse(localStorage.getItem('craftly_projects'))||[] }catch(e){ return [] } }
+function saveProjects(arr){ try{ localStorage.setItem('craftly_projects',JSON.stringify(arr)); }catch(e){} }
+let currentProject=null;
+function newProject(prompt){ currentProject={ id:'p'+Date.now(), name:(prompt||'新项目').slice(0,28), prompt:prompt||'', html:'', theme:themeColor, history:[], updatedAt:Date.now() }; }
+function persistProject(){
+  if(!currentProject||!currentApp) return;
+  currentProject.html=currentApp; currentProject.theme=themeColor; currentProject.updatedAt=Date.now();
+  const arr=loadProjects().filter(p=>p.id!==currentProject.id);
+  arr.unshift(currentProject); saveProjects(arr.slice(0,40));
+}
+function setApp(html){
+  if(currentApp && currentProject){ const h=currentProject.history; h.push(currentApp); if(h.length>20) h.shift(); }
+  currentApp=html; preview.srcdoc=html; persistProject(); updateRevertBtn();
+}
+function revertApp(){
+  if(!currentProject||!currentProject.history.length) return;
+  currentApp=currentProject.history.pop(); preview.srcdoc=currentApp;
+  persistProject(); updateRevertBtn(); addMsg('sys','↶ 已回退到上一个版本。');
+}
+function updateRevertBtn(){ const b=document.getElementById('revertBtn'); if(b) b.disabled=!(currentProject&&currentProject.history.length); }
+function downloadApp(){
+  if(!currentApp){ addMsg('sys','还没有可下载的应用。'); return; }
+  const name=((currentProject&&currentProject.name)||'craftly-app').replace(/[^\w一-龥\- ]+/g,'').trim()||'craftly-app';
+  const blob=new Blob([currentApp],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'.html';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function errHint(e){ const s=String(e&&e.message||e); return /Failed to fetch|NetworkError|load failed/i.test(s) ? s+'（可能是浏览器 CORS 限制：部分服务商不允许网页直接调用，可换支持 CORS 的服务商，或改用打包后的 App/桌面版）' : s; }
+
+/* 我的项目面板 */
+const projBtn=document.getElementById('projBtn'), projMask=document.getElementById('projMask'), projList=document.getElementById('projList');
+function openProjects(){
+  const arr=loadProjects();
+  projList.innerHTML = arr.length ? arr.map(p=>'<div class="proj-item"><div class="proj-item-main"><div class="proj-item-name">'+escape(p.name)+'</div><div class="proj-item-meta">'+new Date(p.updatedAt).toLocaleString()+' · '+(p.html?p.html.length+' 字符':'空')+'</div></div><button class="proj-open" data-id="'+p.id+'">打开</button><button class="proj-del" data-id="'+p.id+'">✕</button></div>').join('')
+    : '<div style="color:#999;font-size:14px;padding:8px 2px">还没有保存的项目。生成一个应用后会自动出现在这里。</div>';
+  projMask.classList.add('open');
+}
+function loadProject(id){
+  const p=loadProjects().find(x=>x.id===id); if(!p) return;
+  currentProject=p; if(!p.history) p.history=[];
+  currentApp=p.html||null; themeColor=p.theme||'#4f46e5';
+  projMask.classList.remove('open');
+  home.classList.add('hidden'); builder.classList.add('show');
+  document.getElementById('projName').textContent=p.name;
+  msgs.innerHTML=''; addMsg('sys','已载入项目「'+escape(p.name)+'」。继续在下方对话即可编辑。');
+  if(currentApp){ preview.srcdoc=currentApp; overlay.style.display='none'; document.getElementById('urlPill').textContent='本地沙盒 · '+p.name; }
+  else { overlay.style.display='flex'; overlayText.textContent='空项目（尚未生成）'; }
+  updateRevertBtn();
+}
+projBtn.onclick=openProjects;
+document.getElementById('projClose').onclick=()=>projMask.classList.remove('open');
+projMask.addEventListener('click',e=>{ if(e.target===projMask) projMask.classList.remove('open'); });
+projList.addEventListener('click',e=>{
+  const o=e.target.closest('.proj-open'), d=e.target.closest('.proj-del');
+  if(o){ loadProject(o.dataset.id); }
+  else if(d){ saveProjects(loadProjects().filter(p=>p.id!==d.dataset.id)); openProjects(); }
+});
+document.getElementById('downloadBtn').onclick=downloadApp;
+document.getElementById('revertBtn').onclick=revertApp;
 
 /* ---------- AI 引擎配置 ---------- */
 const PRESETS = {
@@ -348,6 +473,7 @@ function openCfg(){
 }
 aiBadge.onclick=openCfg;
 document.querySelector('.menu-btn').onclick=openCfg;
+document.querySelector('.connect-pill').onclick=openCfg;
 document.getElementById('cfgClose').onclick=()=>cfgMask.classList.remove('open');
 cfgMask.addEventListener('click',e=>{ if(e.target===cfgMask) cfgMask.classList.remove('open'); });
 cfgProvider.onchange=()=>{ const p=PRESETS[cfgProvider.value]; cfgBase.value=p.base; cfgModel.value=p.model; cfgKey.value=p.key; };
@@ -396,19 +522,23 @@ function extractHtml(s){
 }
 function statCb(){ return f=>{ const el=document.getElementById('genStat'); if(el) el.textContent='已生成 '+f.length+' 字符'; overlayText.textContent='AI 正在编写代码… '+f.length+' 字符'; }; }
 
-async function llmBuild(text){
-  addMsg('ai','🤖 正在调用 '+escape(cfg.model)+' 生成应用…\n<span class="gen-stat" id="genStat">连接中…</span>');
+async function llmBuild(text,images){
+  images=images||[];
+  addMsg('ai','🤖 正在调用 '+escape(cfg.model)+' 生成应用…'+(images.length?'（含 '+images.length+' 张图片）':'')+'\n<span class="gen-stat" id="genStat">连接中…</span>');
   overlayText.textContent='AI 正在编写代码…';
   try{
-    const full=await llmStream([{role:'system',content:SYS},{role:'user',content:text}],statCb());
+    const userContent = images.length
+      ? [{type:'text',text:text}, ...images.map(u=>({type:'image_url',image_url:{url:u}}))]
+      : text;
+    const full=await llmStream([{role:'system',content:SYS},{role:'user',content:userContent}],statCb());
     const html=extractHtml(full);
     if(!html) throw new Error('未能从回复中提取 HTML 代码');
-    currentApp=html; preview.srcdoc=html; overlay.style.display='none';
-    document.getElementById('urlPill').textContent='preview.craftly.app/ai-app';
-    addMsg('ai','✨ 生成完成（'+html.length+' 字符），已部署到沙盒预览。'+(innerWidth<=760?'点右上角「预览」查看。':'')+'\n\n继续描述任何修改，我会实时迭代。');
+    setApp(html); overlay.style.display='none';
+    document.getElementById('urlPill').textContent='本地沙盒 · '+(currentProject?currentProject.name:'ai-app');
+    addMsg('ai','✨ 生成完成（'+html.length+' 字符），已部署到沙盒预览。'+(innerWidth<=760?'点右上角「预览」查看。':'')+'\n可点「⬇ 下载」导出为 .html。继续描述任何修改，我会实时迭代。');
     return true;
   }catch(e){
-    addMsg('sys','⚠ AI 调用失败：'+escape(String(e.message||e))+'。已回退到本地模拟（点首页 ⚙ 检查配置）。');
+    addMsg('sys','⚠ AI 调用失败：'+escape(errHint(e))+'。已回退到本地模拟（点首页 ⚙ 检查配置）。');
     return false;
   }
 }
@@ -421,20 +551,67 @@ async function llmEdit(text){
       {role:'user',content:'当前应用代码：\n```html\n'+currentApp+'\n```\n\n修改要求：'+text}
     ],f=>{ const el=document.getElementById('genStat'); if(el) el.textContent='已生成 '+f.length+' 字符'; });
     const html=extractHtml(full); if(!html) throw new Error('未能提取 HTML');
-    currentApp=html; preview.srcdoc=html;
-    m.innerHTML='✓ 修改完成（'+html.length+' 字符），预览已刷新。';
+    setApp(html);
+    m.innerHTML='✓ 修改完成（'+html.length+' 字符），预览已刷新。如不满意可点「↶ 回退」。';
     return true;
-  }catch(e){ m.innerHTML='⚠ AI 修改失败：'+escape(String(e.message||e)); return true; }
+  }catch(e){ m.innerHTML='⚠ AI 修改失败：'+escape(errHint(e)); return true; }
 }
 
 async function startBuild(text){
   text=text.trim(); if(!text) return;
+  const imgs=attachedImages.slice(); attachedImages=[]; resetAttachTag();
+
+  if(mode==='提问'){
+    home.classList.add('hidden'); builder.classList.add('show');
+    document.getElementById('projName').textContent='提问';
+    msgs.innerHTML=''; overlay.style.display='none';
+    document.getElementById('urlPill').textContent='提问模式（不生成应用）';
+    updateRevertBtn(); addMsg('user',escape(text)); promptEl.value=''; promptEl.dispatchEvent(new Event('input'));
+    await askMode(text); return;
+  }
+
+  themeColor='#4f46e5'; newProject(text); currentApp=null;
   home.classList.add('hidden'); builder.classList.add('show');
-  document.getElementById('projName').textContent=text.slice(0,24);
+  document.getElementById('projName').textContent=currentProject.name;
   msgs.innerHTML=''; overlay.style.display='flex'; overlayText.textContent='沙盒启动中…';
-  addMsg('user',escape(text));
-  if(cfg && cfg.key && cfg.base){ const ok=await llmBuild(text); if(ok) return; }
+  updateRevertBtn();
+  addMsg('user',escape(text)+(imgs.length?'\n（含 '+imgs.length+' 张图片附件）':''));
+  promptEl.value=''; promptEl.dispatchEvent(new Event('input'));
+
+  if(mode==='规划'){ const go=await planMode(text); if(!go) return; }
+  if(cfg && cfg.key && cfg.base){ const ok=await llmBuild(text,imgs); if(ok) return; }
   await simBuild(text);
+}
+
+/* 规划模式：先出计划，用户确认后再构建 */
+function planMode(text){
+  return new Promise(async resolve=>{
+    overlay.style.display='none';
+    let planText=null;
+    if(cfg && cfg.key && cfg.base){
+      const m=addMsg('ai','🧭 正在规划…');
+      try{ planText=await llmStream([{role:'system',content:'你是产品规划助手。针对用户想做的应用，用简洁中文列出：1) 应用名 2) 核心功能(3-6条) 3) 界面结构 4) 技术要点。只输出规划，不要写任何代码。'},{role:'user',content:text}]); }
+      catch(e){ planText=null; }
+      m.remove();
+    }
+    if(!planText){ const p=pickApp(text); planText='应用名：'+p.name+'\n核心功能：\n• '+p.features.join('\n• ')+'\n界面结构：单页卡片式布局，移动端自适应。'; }
+    addMsg('ai','📝 这是我的规划：\n'+escape(planText));
+    const bw=addMsg('ai','');
+    bw.innerHTML='<button class="plan-go" id="planGo">▶ 按此规划开始构建</button><button class="plan-cancel" id="planCancel">取消</button>';
+    document.getElementById('planGo').onclick=()=>{ bw.remove(); overlay.style.display='flex'; overlayText.textContent='沙盒启动中…'; resolve(true); };
+    document.getElementById('planCancel').onclick=()=>{ bw.remove(); addMsg('sys','已取消。可修改需求后再次发送。'); resolve(false); };
+  });
+}
+
+/* 提问模式：只答疑，不生成应用 */
+async function askMode(text){
+  if(cfg && cfg.key && cfg.base){
+    const m=addMsg('ai','💬 思考中…');
+    try{ const ans=await llmStream([{role:'system',content:'你是 Craftly 的助手，用简洁中文回答用户关于做应用、描述需求等问题。'},{role:'user',content:text}],f=>{ m.innerHTML=escape(f); }); m.innerHTML=escape(ans)||'（无回复）'; }
+    catch(e){ m.innerHTML='⚠ 提问失败：'+escape(errHint(e)); }
+  }else{
+    addMsg('ai','💬 提问模式需要先连接 AI 引擎（点首页 ⚙ 或「连接你的所有工具」）。连接后我就能回答关于做什么应用、如何描述需求等问题。');
+  }
 }
 
 async function simBuild(text){
@@ -451,10 +628,9 @@ async function simBuild(text){
     msgs.scrollTop=msgs.scrollHeight;
     await sleep(700);
   }
-  currentApp=plan.html;
-  preview.srcdoc=currentApp;
+  setApp(plan.html);
   overlay.style.display='none';
-  document.getElementById('urlPill').textContent='preview.craftly.app/'+plan.slug;
+  document.getElementById('urlPill').textContent='本地沙盒 · '+plan.name;
   addMsg('ai','✨ 完成！应用已部署到沙盒预览。'+(innerWidth<=760?'点击右上角「预览」查看效果。':'右侧即可查看效果。')+'\n\n继续告诉我要修改什么，比如「换成绿色主题」或「加一个深色模式」。');
 }
 
@@ -502,13 +678,10 @@ async function chatEdit(){
   const colors={ '绿':'#16a34a','红':'#dc2626','蓝':'#2563eb','紫':'#7c3aed','橙':'#ea580c','粉':'#db2777','黑':'#18181b' };
   const hit=Object.keys(colors).find(k=>text.includes(k));
   if(hit && currentApp){
-    currentApp=currentApp.split(themeColor).join(colors[hit]);
-    themeColor=colors[hit];
-    preview.srcdoc=currentApp;
-    addMsg('ai','✓ 已将主题色更新为'+hit+'色，预览已刷新。');
+    const updated=currentApp.split(themeColor).join(colors[hit]); themeColor=colors[hit]; setApp(updated);
+    addMsg('ai','✓ 已将主题色更新为'+hit+'色，预览已刷新。可点「↶ 回退」撤销。');
   }else if(/深色|暗色|dark/i.test(text) && currentApp){
-    currentApp=currentApp.replace('background:#f6f7fb','background:#15151c;color:#e7e7ee').replace(/background:#fff;/g,'background:#22222c;');
-    preview.srcdoc=currentApp;
+    const updated=currentApp.replace('background:#f6f7fb','background:#15151c;color:#e7e7ee').replace(/background:#fff;/g,'background:#22222c;'); setApp(updated);
     addMsg('ai','✓ 已切换为深色模式。');
   }else{
     addMsg('ai','当前为本地模拟模式，仅支持：\n• 「换成绿/蓝/紫/红色主题」\n• 「加一个深色模式」\n\n回到首页点 ⚙ 配置 AI 引擎后，即可执行任意修改。');
